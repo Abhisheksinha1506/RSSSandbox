@@ -1,0 +1,19 @@
+{
+  "name": "rss-developer-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RSS Developer Suite - Comprehensive toolkit for RSS developers and publishers",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\"",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

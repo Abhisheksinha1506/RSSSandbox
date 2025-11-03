@@ -1,0 +1,263 @@
+==========================================
+RSS Developer Suite - Comprehensive Test
+==========================================
+
+Valid URLs:
+  - http://feeds.bbci.co.uk/news/rss.xml
+  - https://a16z.com/feed/
+
+Invalid URLs:
+  - http://feeds.bbci.co.uk/old-news/rss.xml (404)
+  - https://techcrunch.com (Non-feed)
+
+==========================================
+
+════════════════════════════════════════
+TESTING WITH VALID URL 1: BBC News
+════════════════════════════════════════
+
+Testing: Parse Feed
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /parse
+✅ SUCCESS
+   Items: 149
+
+Testing: Validate Feed
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /validate
+⚠️  UNEXPECTED RESPONSE
+{"valid":true,"issues":[],"feedType":"rss"}
+
+Testing: Preview Feed
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /preview
+✅ SUCCESS
+   Feed Type: rss
+   Items: 37
+
+Testing: Cache Test
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /cache-test
+✅ SUCCESS
+
+Testing: Accessibility Check
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /accessibility
+✅ SUCCESS
+
+Testing: Robots Test
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /robots-test
+✅ SUCCESS
+
+Testing: WebSub Test
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /websub-test
+❌ FAILED: No WebSub hub found in feed. This feed does not support WebSub (PubSubHubbub). WebSub is an optional feature that enables real-time feed updates. Most feeds do not support WebSub.
+
+Testing: Link Check
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /link-check
+✅ SUCCESS
+
+Testing: Statistics
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /statistics
+✅ SUCCESS
+   Feed Type: rss
+
+Testing: OPML Generate
+URL: http://feeds.bbci.co.uk/news/rss.xml
+Endpoint: /opml/generate
+✅ SUCCESS
+   OPML Length:       16 chars
+
+
+════════════════════════════════════════
+TESTING WITH VALID URL 2: a16z
+════════════════════════════════════════
+
+Testing: Parse Feed
+URL: https://a16z.com/feed/
+Endpoint: /parse
+❌ FAILED: Status code 404
+
+Testing: Validate Feed
+URL: https://a16z.com/feed/
+Endpoint: /validate
+⚠️  UNEXPECTED RESPONSE
+{"valid":false,"issues":[{"severity":"error","message":"Status code 404"}]}
+
+Testing: Preview Feed
+URL: https://a16z.com/feed/
+Endpoint: /preview
+❌ FAILED: Failed to parse feed for preview
+
+Testing: Cache Test
+URL: https://a16z.com/feed/
+Endpoint: /cache-test
+✅ SUCCESS
+
+Testing: Accessibility Check
+URL: https://a16z.com/feed/
+Endpoint: /accessibility
+❌ FAILED: Status code 404
+
+Testing: Robots Test
+URL: https://a16z.com/feed/
+Endpoint: /robots-test
+✅ SUCCESS
+
+Testing: WebSub Test
+URL: https://a16z.com/feed/
+Endpoint: /websub-test
+❌ FAILED: Status code 404
+
+Testing: Convert Feed (to json)
+URL: https://a16z.com/feed/
+Endpoint: /convert
+❌ FAILED: Status code 404
+
+Testing: Link Check
+URL: https://a16z.com/feed/
+Endpoint: /link-check
+❌ FAILED: Status code 404
+
+Testing: Statistics
+URL: https://a16z.com/feed/
+Endpoint: /statistics
+❌ FAILED: Status code 404
+
+Testing: OPML Generate
+URL: https://a16z.com/feed/
+Endpoint: /opml/generate
+✅ SUCCESS
+   OPML Length:       16 chars
+
+
+════════════════════════════════════════
+TESTING COMPARE (Valid URLs)
+════════════════════════════════════════
+
+Testing: Feed Comparison
+URL1: http://feeds.bbci.co.uk/news/rss.xml
+URL2: https://a16z.com/feed/
+Endpoint: /compare
+❌ FAILED: Failed to parse feed 2: Status code 404
+
+
+════════════════════════════════════════
+TESTING WITH INVALID URL 1: 404 Error
+════════════════════════════════════════
+
+Testing: Parse Feed (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /parse
+❌ FAILED: Status code 404
+
+Testing: Validate Feed (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /validate
+⚠️  UNEXPECTED RESPONSE
+{"valid":false,"issues":[{"severity":"error","message":"Status code 404"}]}
+
+Testing: Preview Feed (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /preview
+❌ FAILED: Failed to parse feed for preview
+
+Testing: Cache Test (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /cache-test
+✅ SUCCESS
+
+Testing: Accessibility Check (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /accessibility
+❌ FAILED: Status code 404
+
+Testing: Robots Test (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /robots-test
+✅ SUCCESS
+
+Testing: WebSub Test (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /websub-test
+❌ FAILED: Status code 404
+
+Testing: Convert Feed (to rss)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /convert
+❌ FAILED: Status code 404
+
+Testing: Link Check (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /link-check
+❌ FAILED: Status code 404
+
+Testing: Statistics (404)
+URL: http://feeds.bbci.co.uk/old-news/rss.xml
+Endpoint: /statistics
+❌ FAILED: Status code 404
+
+
+════════════════════════════════════════
+TESTING WITH INVALID URL 2: Non-Feed
+════════════════════════════════════════
+
+Testing: Parse Feed (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /parse
+❌ FAILED: Invalid character in entity name\nLine: 51\nColumn: 22\nChar: &
+
+Testing: Validate Feed (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /validate
+⚠️  UNEXPECTED RESPONSE
+{"valid":false,"issues":[{"severity":"error","message":"Feed not recognized as RSS 1 or 2."}]}
+
+Testing: Preview Feed (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /preview
+❌ FAILED: Failed to parse feed for preview
+
+Testing: Cache Test (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /cache-test
+✅ SUCCESS
+
+Testing: Accessibility Check (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /accessibility
+❌ FAILED: Feed not recognized as RSS 1 or 2.
+
+Testing: Robots Test (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /robots-test
+✅ SUCCESS
+
+Testing: WebSub Test (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /websub-test
+❌ FAILED: Invalid character in entity name\nLine: 51\nColumn: 22\nChar: &
+
+Testing: Convert Feed (to rss)
+URL: https://techcrunch.com
+Endpoint: /convert
+❌ FAILED: Feed not recognized as RSS 1 or 2.
+
+Testing: Link Check (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /link-check
+❌ FAILED: Invalid character in entity name\nLine: 51\nColumn: 22\nChar: &
+
+Testing: Statistics (Non-Feed)
+URL: https://techcrunch.com
+Endpoint: /statistics
+❌ FAILED: Feed not recognized as RSS 1 or 2.
+
+
+==========================================
+TEST COMPLETE
+==========================================
