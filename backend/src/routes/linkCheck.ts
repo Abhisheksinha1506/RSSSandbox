@@ -1,28 +1,29 @@
 import { Router } from 'express';
 import { linkCheckerService } from '../services/linkChecker';
+import { validateUrlInput } from '../utils/urlValidator';
+import { strictRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
+// Apply stricter rate limiting to resource-intensive endpoint
+router.use('/link-check', strictRateLimiter);
+
 router.post('/link-check', async (req, res) => {
   try {
-    const { url } = req.body;
-
-    if (!url || typeof url !== 'string') {
+    const urlValidation = validateUrlInput(req.body.url);
+    if (!urlValidation.isValid) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Feed URL is required' 
+        error: urlValidation.error || 'Invalid URL',
+        suggestions: [
+          'Provide a valid public feed URL',
+          'Only HTTP and HTTPS URLs are allowed',
+          'Private/internal IP addresses are not permitted for security reasons'
+        ]
       });
     }
 
-    // Basic URL validation
-    try {
-      new URL(url);
-    } catch {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid URL format' 
-      });
-    }
+    const url = urlValidation.url!;
 
     const result = await linkCheckerService.checkFeedLinks(url);
     

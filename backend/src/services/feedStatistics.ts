@@ -80,7 +80,7 @@ export class FeedStatisticsService {
       hasDates: !!(feed.metadata.pubDate || feed.metadata.lastBuildDate),
     };
 
-    // Item statistics
+    // Item statistics - single pass optimization
     let totalTitleLength = 0;
     let totalDescriptionLength = 0;
     let totalContentLength = 0;
@@ -88,51 +88,75 @@ export class FeedStatisticsService {
     const categories = new Set<string>();
     const authors = new Set<string>();
 
+    // Counters for single-pass statistics
+    let withTitle = 0;
+    let withDescription = 0;
+    let withContent = 0;
+    let withImages = 0;
+    let withEnclosures = 0;
+    let withAuthors = 0;
+    let withCategories = 0;
+    let withDates = 0;
+    let totalImages = 0;
+    let totalEnclosures = 0;
+
     items.forEach(item => {
       if (item.title) {
+        withTitle++;
         totalTitleLength += item.title.length;
       }
       if (item.description) {
+        withDescription++;
         totalDescriptionLength += item.description.length;
       }
       if (item.content) {
+        withContent++;
         totalContentLength += item.content.length;
       }
-      if (item.pubDate) {
-        dates.push(item.pubDate);
+      if (item.image) {
+        withImages++;
+        totalImages++;
       }
-      if (item.categories) {
-        item.categories.forEach(cat => categories.add(cat));
+      if (item.enclosure) {
+        withEnclosures++;
+        totalEnclosures++;
       }
       if (item.author) {
+        withAuthors++;
         authors.add(item.author);
+      }
+      if (item.categories && item.categories.length > 0) {
+        withCategories++;
+        item.categories.forEach(cat => categories.add(cat));
+      }
+      if (item.pubDate) {
+        withDates++;
+        dates.push(item.pubDate);
       }
     });
 
     const itemsStats = {
       total: items.length,
-      withTitle: items.filter(i => i.title).length,
-      withDescription: items.filter(i => i.description).length,
-      withContent: items.filter(i => i.content).length,
-      withImages: items.filter(i => i.image).length,
-      withEnclosures: items.filter(i => i.enclosure).length,
-      withAuthors: items.filter(i => i.author).length,
-      withCategories: items.filter(i => i.categories && i.categories.length > 0).length,
-      withDates: items.filter(i => i.pubDate).length,
-      averageTitleLength: items.filter(i => i.title).length > 0 
-        ? Math.round(totalTitleLength / items.filter(i => i.title).length) 
+      withTitle,
+      withDescription,
+      withContent,
+      withImages,
+      withEnclosures,
+      withAuthors,
+      withCategories,
+      withDates,
+      averageTitleLength: withTitle > 0 
+        ? Math.round(totalTitleLength / withTitle) 
         : 0,
-      averageDescriptionLength: items.filter(i => i.description).length > 0
-        ? Math.round(totalDescriptionLength / items.filter(i => i.description).length)
+      averageDescriptionLength: withDescription > 0
+        ? Math.round(totalDescriptionLength / withDescription)
         : 0,
-      averageContentLength: items.filter(i => i.content).length > 0
-        ? Math.round(totalContentLength / items.filter(i => i.content).length)
+      averageContentLength: withContent > 0
+        ? Math.round(totalContentLength / withContent)
         : 0,
     };
 
     // Content statistics
-    const totalImages = items.filter(i => i.image).length;
-    const totalEnclosures = items.filter(i => i.enclosure).length;
     const totalCategories = items.reduce((sum, item) => sum + (item.categories?.length || 0), 0);
     const uniqueCategories = categories.size;
     const uniqueAuthors = authors.size;
@@ -162,7 +186,6 @@ export class FeedStatisticsService {
     // Quality score calculation (0-100)
     let completenessScore = 0;
     const maxScore = 100;
-    const scorePerItem = maxScore / items.length;
 
     // Metadata completeness (20 points)
     if (metadata.hasTitle) completenessScore += 5;
@@ -173,20 +196,26 @@ export class FeedStatisticsService {
     if (metadata.hasCopyright) completenessScore += 2;
     if (metadata.hasDescription && feed.metadata.description!.length > 50) completenessScore += 3;
 
-    // Item completeness (80 points)
-    items.forEach(item => {
-      let itemScore = 0;
-      if (item.title) itemScore += 10;
-      if (item.link) itemScore += 10;
-      if (item.description || item.content) itemScore += 15;
-      if (item.pubDate) itemScore += 15;
-      if (item.guid) itemScore += 10;
-      if (item.author) itemScore += 5;
-      if (item.categories && item.categories.length > 0) itemScore += 5;
-      if (item.image) itemScore += 5;
-      if (item.enclosure) itemScore += 5;
-      completenessScore += (itemScore * scorePerItem) / 100;
-    });
+    // Item completeness (80 points) - only calculate if items exist
+    if (items.length > 0) {
+      const scorePerItem = maxScore / items.length;
+      items.forEach(item => {
+        let itemScore = 0;
+        if (item.title) itemScore += 10;
+        if (item.link) itemScore += 10;
+        if (item.description || item.content) itemScore += 15;
+        if (item.pubDate) itemScore += 15;
+        if (item.guid) itemScore += 10;
+        if (item.author) itemScore += 5;
+        if (item.categories && item.categories.length > 0) itemScore += 5;
+        if (item.image) itemScore += 5;
+        if (item.enclosure) itemScore += 5;
+        completenessScore += (itemScore * scorePerItem) / 100;
+      });
+    } else {
+      // If no items, only metadata score counts (max 20 points)
+      completenessScore = Math.min(20, completenessScore);
+    }
 
     completenessScore = Math.min(100, Math.round(completenessScore));
 

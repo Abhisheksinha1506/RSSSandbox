@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,10 +17,12 @@ interface FeedInputProps {
   exampleUrls?: string[];
 }
 
+// More reliable example feeds that are publicly accessible
 const DEFAULT_EXAMPLES = [
-  'http://feeds.bbci.co.uk/news/rss.xml',
-  'https://techcrunch.com/feed/',
-  'https://rss.cnn.com/rss/edition.rss'
+  'https://feeds.feedburner.com/oreilly/radar', // O'Reilly Radar - reliable tech feed
+  'https://www.nasa.gov/rss/dyn/breaking_news.rss', // NASA Breaking News
+  'https://rss.cnn.com/rss/edition.rss', // CNN RSS
+  'https://feeds.npr.org/1001/rss.xml', // NPR News
 ];
 
 export function FeedInput({ 
@@ -34,6 +36,17 @@ export function FeedInput({
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showExamples, setShowExamples] = useState(false);
+  const [selectedExample, setSelectedExample] = useState<string | null>(null);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const validateUrl = (urlString: string): boolean => {
     try {
@@ -66,8 +79,20 @@ export function FeedInput({
   const handleExampleClick = useCallback((exampleUrl: string) => {
     setUrl(exampleUrl);
     setError(null);
+    setSelectedExample(exampleUrl);
     setShowExamples(false);
-  }, []);
+    
+    // Clear any existing timeout
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+    
+    // Auto-submit the example URL after a brief delay to show visual feedback
+    submitTimeoutRef.current = setTimeout(() => {
+      onSubmit(exampleUrl);
+      submitTimeoutRef.current = null;
+    }, 100);
+  }, [onSubmit]);
 
   return (
     <Card className="border-2 shadow-md p-4 sm:p-6">
@@ -97,22 +122,45 @@ export function FeedInput({
           )}
 
           {showExamples && (
-            <div className="p-3 rounded-lg bg-muted/50 border border-dashed space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Try these examples:</p>
+            <div className="p-3 rounded-lg bg-muted/50 border border-dashed space-y-2 animate-in fade-in slide-in-from-top-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Click an example to load it automatically:
+              </p>
               <div className="flex flex-wrap gap-2">
-                {exampleUrls.map((exampleUrl, index) => (
-                  <Button
-                    key={index}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleExampleClick(exampleUrl)}
-                    className="text-xs h-7 sm:h-8"
-                  >
-                    {exampleUrl.replace(/^https?:\/\//, '').split('/')[0]}
-                  </Button>
-                ))}
+                {exampleUrls.map((exampleUrl, index) => {
+                  const domain = exampleUrl.replace(/^https?:\/\//, '').split('/')[0];
+                  const isSelected = selectedExample === exampleUrl;
+                  const isProcessing = isLoading && isSelected;
+                  
+                  return (
+                    <Button
+                      key={index}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleExampleClick(exampleUrl)}
+                      disabled={isLoading}
+                      className={cn(
+                        "text-xs h-7 sm:h-8 transition-all",
+                        isSelected && "ring-2 ring-primary ring-offset-2",
+                        isProcessing && "opacity-75"
+                      )}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <span className="animate-spin mr-1">⏳</span>
+                          Loading...
+                        </>
+                      ) : (
+                        domain
+                      )}
+                    </Button>
+                  );
+                })}
               </div>
+              <p className="text-xs text-muted-foreground/70 italic">
+                Examples are automatically submitted when clicked
+              </p>
             </div>
           )}
 
@@ -126,6 +174,10 @@ export function FeedInput({
                 onChange={(e) => {
                   setUrl(e.target.value);
                   setError(null);
+                  // Clear selected example when user types
+                  if (selectedExample && e.target.value !== selectedExample) {
+                    setSelectedExample(null);
+                  }
                 }}
                 disabled={isLoading}
                 className={cn(

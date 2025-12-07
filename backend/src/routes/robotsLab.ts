@@ -1,18 +1,25 @@
 import { Router } from 'express';
 import { headersLab } from '../services/headersLab';
+import { validateUrlInput } from '../utils/urlValidator';
 
 const router = Router();
 
 router.post('/robots-test', async (req, res) => {
   try {
-    const { url } = req.body;
-
-    if (!url || typeof url !== 'string') {
+    const urlValidation = validateUrlInput(req.body.url);
+    if (!urlValidation.isValid) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Feed URL is required' 
+        error: urlValidation.error || 'Invalid URL',
+        suggestions: [
+          'Provide a valid public feed URL',
+          'Only HTTP and HTTPS URLs are allowed',
+          'Private/internal IP addresses are not permitted for security reasons'
+        ]
       });
     }
+
+    const url = urlValidation.url!;
 
     const result = await headersLab.testAll(url);
     

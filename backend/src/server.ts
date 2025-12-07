@@ -3,6 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { websocketService } from './services/websocketService';
+import { feedParserService } from './services/feedParser';
+import { webSubClient } from './services/websubClient';
+import { apiRateLimiter, strictRateLimiter } from './middleware/rateLimiter';
 
 dotenv.config();
 
@@ -19,6 +22,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Apply general rate limiting to all API routes
+app.use('/api', apiRateLimiter);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -75,6 +81,69 @@ app.get('/api', (req, res) => {
     ]
   });
 });
+
+// Global error handlers
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit in production, log and continue
+  if (process.env.NODE_ENV === 'production') {
+    // In production, log but don't crash
+    console.error('Unhandled promise rejection logged. Server continuing...');
+  } else {
+    // In development, exit to catch issues early
+    console.error('Unhandled promise rejection in development. Exiting...');
+    gracefulShutdown('unhandledRejection');
+  }
+});
+
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught Exception:', error);
+  // Uncaught exceptions are more serious, always shutdown gracefully
+  gracefulShutdown('uncaughtException');
+});
+
+// Graceful shutdown handler
+let isShuttingDown = false;
+
+function gracefulShutdown(signal: string) {
+  if (isShuttingDown) {
+    console.log('Shutdown already in progress...');
+    return;
+  }
+
+  isShuttingDown = true;
+  console.log(`Received ${signal}. Starting graceful shutdown...`);
+
+  // Close server to stop accepting new connections
+  server.close(() => {
+    console.log('HTTP server closed');
+
+    // Close WebSocket server
+    websocketService.close();
+    console.log('WebSocket server closed');
+
+    // Cleanup feed parser cache
+    feedParserService.destroy();
+    console.log('Feed parser cache cleaned up');
+
+    // Cleanup WebSub client subscriptions
+    webSubClient.destroy();
+    console.log('WebSub client cleaned up');
+
+    console.log('Graceful shutdown complete');
+    process.exit(0);
+  });
+
+  // Force shutdown after 10 seconds if graceful shutdown doesn't complete
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+// Handle termination signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

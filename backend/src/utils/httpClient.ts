@@ -8,15 +8,70 @@ export interface HttpResponse {
   ok: boolean;
 }
 
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
+
+/**
+ * Wrapper for fetch with timeout support using AbortController
+ */
+export async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit & { timeout?: number }
+): Promise<Response> {
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
+  const { timeout: _, ...fetchOptions } = options || {};
+
+  // Create AbortController for proper request cancellation
+  // AbortController is available natively in Node.js 18+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal
+    });
+    
+    // Clear timeout if request completes successfully
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    // Clear timeout on error
+    clearTimeout(timeoutId);
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        throw new Error(`Request timeout: Request to ${url} exceeded ${timeout}ms`);
+      }
+    }
+    throw error;
+  }
+}
+
 export async function fetchWithHeaders(url: string, options?: {
   method?: 'GET' | 'HEAD' | 'POST';
   headers?: Record<string, string>;
+  timeout?: number;
 }): Promise<HttpResponse> {
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
+
+  // Create AbortController for proper request cancellation
+  // AbortController is available natively in Node.js 18+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
   try {
     const response = await fetch(url, {
       method: options?.method || 'GET',
-      headers: options?.headers || {}
+      headers: options?.headers || {},
+      signal: controller.signal
     });
+
+    // Clear timeout if request completes successfully
+    clearTimeout(timeoutId);
 
     const headers: Record<string, string> = {};
     response.headers.forEach((value, key) => {
@@ -33,6 +88,15 @@ export async function fetchWithHeaders(url: string, options?: {
       ok: response.ok
     };
   } catch (error) {
+    // Clear timeout on error
+    clearTimeout(timeoutId);
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        throw new Error(`HTTP request timeout: Request to ${url} exceeded ${timeout}ms`);
+      }
+    }
+    
     throw new Error(`HTTP request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

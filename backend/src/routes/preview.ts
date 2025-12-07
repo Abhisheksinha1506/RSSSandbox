@@ -1,31 +1,38 @@
 import { Router } from 'express';
 import { previewService } from '../services/previewService';
+import { validateUrlInput } from '../utils/urlValidator';
 
 const router = Router();
 
 router.post('/preview', async (req, res) => {
   try {
-    const { url } = req.body;
-
-    if (!url || typeof url !== 'string') {
+    const urlValidation = validateUrlInput(req.body.url);
+    if (!urlValidation.isValid) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Feed URL is required' 
+        error: urlValidation.error || 'Invalid URL',
+        suggestions: [
+          'Provide a valid public feed URL',
+          'Only HTTP and HTTPS URLs are allowed',
+          'Private/internal IP addresses are not permitted for security reasons'
+        ]
       });
     }
 
-    const previewData = await previewService.getPreviewData(url);
+    const url = urlValidation.url!;
+
+    const result = await previewService.getPreviewData(url);
     
-    if (!previewData) {
+    if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Failed to parse feed for preview'
+        error: result.error || 'Failed to parse feed for preview'
       });
     }
 
     return res.json({
       success: true,
-      data: previewData
+      data: result.data
     });
   } catch (error) {
     console.error('Preview error:', error);

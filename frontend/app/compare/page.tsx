@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { LoadingState } from '@/components/common/LoadingState';
 import { ErrorDisplay } from '@/components/common/ErrorDisplay';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,7 +52,7 @@ export default function ComparePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!url1.trim() || !url2.trim()) {
       setError('Please provide both feed URLs');
       return;
@@ -77,9 +77,9 @@ export default function ComparePage() {
       setError(err instanceof Error ? err.message : 'Failed to compare feeds');
       setLoading(false);
     }
-  };
+  }, [url1, url2]);
 
-  const getSimilarityBadge = (similarity: number) => {
+  const getSimilarityBadge = useCallback((similarity: number) => {
     if (similarity >= 80) {
       return <Badge className="bg-green-500 text-xs sm:text-sm">Very Similar</Badge>;
     } else if (similarity >= 60) {
@@ -89,7 +89,7 @@ export default function ComparePage() {
     } else {
       return <Badge variant="destructive" className="text-xs sm:text-sm">Very Different</Badge>;
     }
-  };
+  }, []);
 
   return (
     <div className="container py-8 sm:py-12 px-4 sm:px-6 max-w-7xl">

@@ -74,47 +74,49 @@ export class FeedConverterService {
     xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">\n';
     xml += '  <channel>\n';
     
-    // Channel metadata
-    xml += `    <title>${this.escapeXML(feed.metadata.title)}</title>\n`;
-    xml += `    <link>${this.escapeXML(feed.metadata.link)}</link>\n`;
-    xml += `    <description>${this.escapeXML(feed.metadata.description || '')}</description>\n`;
-    if (feed.metadata.language) {
-      xml += `    <language>${this.escapeXML(feed.metadata.language)}</language>\n`;
+    // Channel metadata - with null safety
+    const metadata = feed.metadata || {};
+    xml += `    <title>${this.escapeXML(metadata.title || 'Untitled Feed')}</title>\n`;
+    xml += `    <link>${this.escapeXML(metadata.link || '')}</link>\n`;
+    xml += `    <description>${this.escapeXML(metadata.description || '')}</description>\n`;
+    if (metadata.language) {
+      xml += `    <language>${this.escapeXML(metadata.language)}</language>\n`;
     }
-    if (feed.metadata.copyright) {
-      xml += `    <copyright>${this.escapeXML(feed.metadata.copyright)}</copyright>\n`;
+    if (metadata.copyright) {
+      xml += `    <copyright>${this.escapeXML(metadata.copyright)}</copyright>\n`;
     }
-    if (feed.metadata.managingEditor) {
-      xml += `    <managingEditor>${this.escapeXML(feed.metadata.managingEditor)}</managingEditor>\n`;
+    if (metadata.managingEditor) {
+      xml += `    <managingEditor>${this.escapeXML(metadata.managingEditor)}</managingEditor>\n`;
     }
-    if (feed.metadata.webMaster) {
-      xml += `    <webMaster>${this.escapeXML(feed.metadata.webMaster)}</webMaster>\n`;
+    if (metadata.webMaster) {
+      xml += `    <webMaster>${this.escapeXML(metadata.webMaster)}</webMaster>\n`;
     }
-    if (feed.metadata.pubDate) {
-      xml += `    <pubDate>${this.formatRFC822(feed.metadata.pubDate)}</pubDate>\n`;
+    if (metadata.pubDate) {
+      xml += `    <pubDate>${this.formatRFC822(metadata.pubDate)}</pubDate>\n`;
     }
-    if (feed.metadata.lastBuildDate) {
-      xml += `    <lastBuildDate>${this.formatRFC822(feed.metadata.lastBuildDate)}</lastBuildDate>\n`;
+    if (metadata.lastBuildDate) {
+      xml += `    <lastBuildDate>${this.formatRFC822(metadata.lastBuildDate)}</lastBuildDate>\n`;
     }
-    if (feed.metadata.image) {
+    if (metadata.image) {
       xml += '    <image>\n';
-      xml += `      <url>${this.escapeXML(feed.metadata.image.url)}</url>\n`;
-      xml += `      <title>${this.escapeXML(feed.metadata.image.title)}</title>\n`;
-      xml += `      <link>${this.escapeXML(feed.metadata.image.link)}</link>\n`;
-      if (feed.metadata.image.width) {
-        xml += `      <width>${feed.metadata.image.width}</width>\n`;
+      xml += `      <url>${this.escapeXML(metadata.image.url || '')}</url>\n`;
+      xml += `      <title>${this.escapeXML(metadata.image.title || metadata.title || '')}</title>\n`;
+      xml += `      <link>${this.escapeXML(metadata.image.link || metadata.link || '')}</link>\n`;
+      if (metadata.image.width) {
+        xml += `      <width>${metadata.image.width}</width>\n`;
       }
-      if (feed.metadata.image.height) {
-        xml += `      <height>${feed.metadata.image.height}</height>\n`;
+      if (metadata.image.height) {
+        xml += `      <height>${metadata.image.height}</height>\n`;
       }
       xml += '    </image>\n';
     }
     
-    // Items
-    feed.items.forEach(item => {
+    // Items - handle empty arrays
+    const items = feed.items || [];
+    items.forEach(item => {
       xml += '    <item>\n';
-      xml += `      <title>${this.escapeXML(item.title)}</title>\n`;
-      xml += `      <link>${this.escapeXML(item.link)}</link>\n`;
+      xml += `      <title>${this.escapeXML(item.title || 'Untitled')}</title>\n`;
+      xml += `      <link>${this.escapeXML(item.link || '')}</link>\n`;
       if (item.description) {
         xml += `      <description><![CDATA[${item.description}]]></description>\n`;
       }
@@ -158,26 +160,28 @@ export class FeedConverterService {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<feed xmlns="http://www.w3.org/2005/Atom">\n';
     
-    // Feed metadata
-    xml += `  <title>${this.escapeXML(feed.metadata.title)}</title>\n`;
-    xml += `  <link href="${this.escapeXML(feed.metadata.link)}" rel="alternate" />\n`;
-    xml += `  <id>${this.escapeXML(feed.metadata.link)}</id>\n`;
-    xml += `  <updated>${(feed.metadata.lastBuildDate || feed.metadata.pubDate || new Date()).toISOString()}</updated>\n`;
-    if (feed.metadata.description) {
-      xml += `  <subtitle>${this.escapeXML(feed.metadata.description)}</subtitle>\n`;
+    // Feed metadata - with null safety
+    const metadata = feed.metadata || {};
+    xml += `  <title>${this.escapeXML(metadata.title || 'Untitled Feed')}</title>\n`;
+    xml += `  <link href="${this.escapeXML(metadata.link || '')}" rel="alternate" />\n`;
+    xml += `  <id>${this.escapeXML(metadata.link || '')}</id>\n`;
+    xml += `  <updated>${(metadata.lastBuildDate || metadata.pubDate || new Date()).toISOString()}</updated>\n`;
+    if (metadata.description) {
+      xml += `  <subtitle>${this.escapeXML(metadata.description)}</subtitle>\n`;
     }
-    if (feed.metadata.language) {
-      xml += `  <lang>${this.escapeXML(feed.metadata.language)}</lang>\n`;
+    if (metadata.language) {
+      xml += `  <lang>${this.escapeXML(metadata.language)}</lang>\n`;
     }
-    if (feed.metadata.copyright) {
-      xml += `  <rights>${this.escapeXML(feed.metadata.copyright)}</rights>\n`;
+    if (metadata.copyright) {
+      xml += `  <rights>${this.escapeXML(metadata.copyright)}</rights>\n`;
     }
-    if (feed.metadata.image?.url) {
-      xml += `  <icon>${this.escapeXML(feed.metadata.image.url)}</icon>\n`;
+    if (metadata.image?.url) {
+      xml += `  <icon>${this.escapeXML(metadata.image.url)}</icon>\n`;
     }
     
-    // Entries
-    feed.items.forEach(item => {
+    // Entries - handle empty arrays
+    const items = feed.items || [];
+    items.forEach(item => {
       xml += '  <entry>\n';
       xml += `    <title>${this.escapeXML(item.title)}</title>\n`;
       xml += `    <link href="${this.escapeXML(item.link)}" rel="alternate" />\n`;
@@ -211,15 +215,18 @@ export class FeedConverterService {
   }
 
   private convertToJSONFeed(feed: ParsedFeed): string {
+    const metadata = feed.metadata || {};
+    const items = feed.items || [];
+    
     const jsonFeed: any = {
       version: 'https://jsonfeed.org/version/1.1',
-      title: feed.metadata.title,
-      description: feed.metadata.description,
-      home_page_url: feed.metadata.link,
-      feed_url: feed.metadata.link,
-      language: feed.metadata.language,
-      icon: feed.metadata.image?.url,
-      items: feed.items.map(item => ({
+      title: metadata.title || 'Untitled Feed',
+      description: metadata.description,
+      home_page_url: metadata.link || '',
+      feed_url: metadata.link || '',
+      language: metadata.language,
+      icon: metadata.image?.url,
+      items: items.map(item => ({
         id: item.guid || item.link,
         url: item.link,
         title: item.title,

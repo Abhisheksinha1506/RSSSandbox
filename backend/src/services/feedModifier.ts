@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { feedParserService } from './feedParser';
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
+import { fetchWithTimeout } from '../utils/httpClient';
 
 export interface ModifiedFeed {
   original: string;
@@ -27,7 +28,7 @@ export class FeedModifier {
       // For RSS/Atom, we need to modify the raw XML
       if (feed.type === 'rss' || feed.type === 'atom') {
         // Fetch the original feed XML
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url, { timeout: 30000 });
         const originalXml = await response.text();
 
         const parser = new XMLParser({
@@ -120,7 +121,7 @@ export class FeedModifier {
 
       // For JSON Feed, modify JSON
       if (feed.type === 'json') {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url, { timeout: 30000 });
         const originalJson = await response.json();
         const modifiedJson = JSON.parse(JSON.stringify(originalJson));
 

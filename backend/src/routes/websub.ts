@@ -1,20 +1,28 @@
 import { Router } from 'express';
 import { webSubClient } from '../services/websubClient';
 import { URL } from 'url';
+import { validateUrlInput } from '../utils/urlValidator';
 
 const router = Router();
 
 // Discover hub
 router.post('/websub-test', async (req, res) => {
   try {
-    const { url, action } = req.body;
-
-    if (!url || typeof url !== 'string') {
+    const urlValidation = validateUrlInput(req.body.url);
+    if (!urlValidation.isValid) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Feed URL is required' 
+        error: urlValidation.error || 'Invalid URL',
+        suggestions: [
+          'Provide a valid public feed URL',
+          'Only HTTP and HTTPS URLs are allowed',
+          'Private/internal IP addresses are not permitted for security reasons'
+        ]
       });
     }
+
+    const { action } = req.body;
+    const url = urlValidation.url!;
 
     if (action === 'discover') {
       const discovery = await webSubClient.discoverHub(url);

@@ -1,5 +1,5 @@
 import robotsParser from 'robots-parser';
-import fetch from 'node-fetch';
+import { fetchWithTimeout } from '../utils/httpClient';
 import { URL } from 'url';
 
 export interface RobotsTestResult {
@@ -27,7 +27,7 @@ export class RobotsTester {
       // Fetch robots.txt
       let robotsText: string | undefined;
       try {
-        const response = await fetch(robotsUrl);
+        const response = await fetchWithTimeout(robotsUrl, { timeout: 30000 });
         if (response.ok) {
           robotsText = await response.text();
         }

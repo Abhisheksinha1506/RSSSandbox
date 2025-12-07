@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { FeedInput } from '@/components/common/FeedInput';
 import { LoadingState } from '@/components/common/LoadingState';
 import { ErrorDisplay } from '@/components/common/ErrorDisplay';
@@ -46,7 +46,7 @@ export default function RobotsLabPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (url: string) => {
+  const handleSubmit = useCallback(async (url: string) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -66,7 +66,7 @@ export default function RobotsLabPage() {
       setError(err instanceof Error ? err.message : 'Failed to test robots and headers');
       setLoading(false);
     }
-  };
+  }, []);
 
   return (
     <div className="container py-8 sm:py-12 px-4 sm:px-6 max-w-7xl">

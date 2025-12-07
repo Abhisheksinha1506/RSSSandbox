@@ -1,35 +1,38 @@
 import { Router } from 'express';
 import { feedConverterService } from '../services/feedConverter';
+import { validateUrlInput } from '../utils/urlValidator';
 
 const router = Router();
 
 router.post('/convert', async (req, res) => {
   try {
-    const { url, targetType } = req.body;
-
-    if (!url || typeof url !== 'string') {
+    const urlValidation = validateUrlInput(req.body.url);
+    if (!urlValidation.isValid) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Feed URL is required' 
+        error: urlValidation.error || 'Invalid URL',
+        suggestions: [
+          'Provide a valid public feed URL',
+          'Only HTTP and HTTPS URLs are allowed',
+          'Private/internal IP addresses are not permitted for security reasons'
+        ]
       });
     }
+
+    const { targetType } = req.body;
 
     if (!targetType || !['rss', 'atom', 'json'].includes(targetType)) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Target type must be one of: rss, atom, json' 
+        error: 'Target type must be one of: rss, atom, json',
+        suggestions: [
+          'Specify targetType as "rss", "atom", or "json"',
+          'Ensure the targetType matches one of the supported formats'
+        ]
       });
     }
 
-    // Basic URL validation
-    try {
-      new URL(url);
-    } catch {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid URL format' 
-      });
-    }
+    const url = urlValidation.url!;
 
     const result = await feedConverterService.convertFeed(url, targetType);
     
@@ -44,7 +47,12 @@ router.post('/convert', async (req, res) => {
       success: false,
       originalType: 'rss',
       targetType: req.body.targetType || 'rss',
-      error: error instanceof Error ? error.message : 'Internal server error'
+      error: error instanceof Error ? error.message : 'Internal server error',
+      suggestions: [
+        'This is an unexpected server error',
+        'Try again in a few moments',
+        'If the problem persists, check the feed URL and try a different feed'
+      ]
     });
   }
 });

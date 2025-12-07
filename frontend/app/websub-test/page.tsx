@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FeedInput } from '@/components/common/FeedInput';
 import { LoadingState } from '@/components/common/LoadingState';
 import { ErrorDisplay } from '@/components/common/ErrorDisplay';
@@ -33,57 +33,64 @@ export default function WebSubTestPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<WebSubEvent[]>([]);
-  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [wsReadyState, setWsReadyState] = useState<number>(WebSocket.CLOSED);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('not_subscribed');
+  
+  // Use refs for proper cleanup
+  const websocketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    let websocket: WebSocket | null = null;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
-    let reconnectTimeout: NodeJS.Timeout | null = null;
 
     const connectWebSocket = () => {
       // Clean up existing connection
-      if (websocket && websocket.readyState === WebSocket.OPEN) {
-        websocket.close();
+      if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
+        websocketRef.current.close();
       }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
       
       try {
-        websocket = new WebSocket(wsUrl);
+        const websocket = new WebSocket(wsUrl);
+        websocketRef.current = websocket;
 
-    websocket.onopen = () => {
-      console.log('WebSocket connected');
+        websocket.onopen = () => {
+          console.log('WebSocket connected');
           reconnectAttempts = 0; // Reset on successful connection
-      setEvents(prev => [...prev, {
-        type: 'connection',
-        timestamp: new Date(),
+          setWsReadyState(WebSocket.OPEN);
+          setEvents(prev => [...prev, {
+            type: 'connection',
+            timestamp: new Date(),
             message: 'WebSocket connected successfully'
-      }]);
-    };
+          }]);
+        };
 
-    websocket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setEvents(prev => [...prev, {
-          type: data.type,
-          timestamp: new Date(data.timestamp),
-          message: data.message,
-          data: data.data
-        }]);
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
-      }
-    };
+        websocket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            setEvents(prev => [...prev, {
+              type: data.type,
+              timestamp: new Date(data.timestamp),
+              message: data.message,
+              data: data.data
+            }]);
+          } catch (err) {
+            console.error('Failed to parse WebSocket message:', err);
+          }
+        };
 
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+        websocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          setWsReadyState(WebSocket.CLOSED);
           // Don't add error event here - onclose will handle it
         };
 
         websocket.onclose = (event) => {
           console.log('WebSocket disconnected', event.code, event.reason);
+          setWsReadyState(WebSocket.CLOSED);
           
           // Only show disconnection event if it wasn't a manual close
           if (event.code !== 1000) {
@@ -99,45 +106,48 @@ export default function WebSubTestPage() {
               const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff, max 30s
               console.log(`Reconnecting WebSocket in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
               
-              reconnectTimeout = setTimeout(() => {
+              reconnectTimeoutRef.current = setTimeout(() => {
                 connectWebSocket();
               }, delay);
             } else {
-      setEvents(prev => [...prev, {
-        type: 'error',
-        timestamp: new Date(),
+              setEvents(prev => [...prev, {
+                type: 'error',
+                timestamp: new Date(),
                 message: 'WebSocket connection failed after multiple attempts. Please refresh the page.'
-      }]);
+              }]);
             }
           }
-    };
-
-        setWs(websocket);
+        };
       } catch (error) {
         console.error('Failed to create WebSocket:', error);
-      setEvents(prev => [...prev, {
+        setWsReadyState(WebSocket.CLOSED);
+        setEvents(prev => [...prev, {
           type: 'error',
-        timestamp: new Date(),
+          timestamp: new Date(),
           message: `Failed to create WebSocket connection: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }]);
+        }]);
       }
     };
 
     // Initial connection with a small delay to ensure backend is ready
-    const initialTimeout = setTimeout(() => {
+    initialTimeoutRef.current = setTimeout(() => {
       connectWebSocket();
     }, 500);
 
     return () => {
-      clearTimeout(initialTimeout);
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
+      // Clean up all timeouts
+      if (initialTimeoutRef.current) {
+        clearTimeout(initialTimeoutRef.current);
       }
-      if (websocket) {
-        // Use 1000 (Normal Closure) to indicate manual close
-        if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
-          websocket.close(1000, 'Component unmounting');
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      // Clean up WebSocket connection
+      if (websocketRef.current) {
+        if (websocketRef.current.readyState === WebSocket.OPEN || websocketRef.current.readyState === WebSocket.CONNECTING) {
+          websocketRef.current.close(1000, 'Component unmounting');
         }
+        websocketRef.current = null;
       }
     };
   }, []);
@@ -194,35 +204,28 @@ export default function WebSubTestPage() {
       // Generate callback URL
       const callbackUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/websub/verify`;
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/websub-test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'subscribe',
-          hub: discovery.hub.url,
-          topic: discovery.hub.self,
-          callback: callbackUrl,
-          leaseSeconds: 86400
-        }),
-      });
-
-      const data = await response.json();
+      const response = await api.subscribeWebSub(
+        discovery.hub.url,
+        discovery.hub.self,
+        callbackUrl,
+        86400
+      );
       
-      if (data.success && data.data.verified) {
+      if (response.success && response.data && (response.data as { verified?: boolean }).verified) {
         setSubscriptionStatus('subscribed');
         setEvents(prev => [...prev, {
           type: 'subscribe',
           timestamp: new Date(),
           message: 'Subscription request sent',
-          data: data.data
+          data: response.data
         }]);
       } else {
         setSubscriptionStatus('failed');
-        setError(data.error || 'Subscription failed');
+        setError(response.error || 'Subscription failed');
         setEvents(prev => [...prev, {
           type: 'error',
           timestamp: new Date(),
-          message: data.error || 'Subscription failed'
+          message: response.error || 'Subscription failed'
         }]);
       }
       
@@ -322,7 +325,7 @@ export default function WebSubTestPage() {
                 <CardTitle className="text-lg sm:text-xl">Event Log</CardTitle>
                 <Badge variant="outline" className="text-xs sm:text-sm">
                   <Radio className="h-3 w-3 mr-1" />
-                  {ws?.readyState === WebSocket.OPEN ? 'Connected' : 'Disconnected'}
+                  {wsReadyState === WebSocket.OPEN ? 'Connected' : 'Disconnected'}
                 </Badge>
               </div>
               <CardDescription className="text-sm">

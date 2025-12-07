@@ -76,22 +76,15 @@ export default function AccessibilityPage() {
     setError(null);
 
     try {
-      // Call API with fix=true to get modified feed
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/accessibility`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: currentUrl, fix: true }),
-      });
-
-      const data = await response.json();
+      const response = await api.checkAccessibility(currentUrl, true);
       
-      if (!data.success || !data.data) {
-        setError(data.error || 'Failed to fix feed');
+      if (!response.success || !response.data) {
+        setError(response.error || 'Failed to fix feed');
         setLoading(false);
         return;
       }
 
-      setModifiedFeed(data.data as ModifiedFeed);
+      setModifiedFeed(response.data as ModifiedFeed);
       setLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fix feed');

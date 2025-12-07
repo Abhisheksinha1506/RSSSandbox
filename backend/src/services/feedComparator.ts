@@ -94,9 +94,27 @@ export class FeedComparatorService {
       },
     };
 
-    // Compare items
-    const feed1ItemGuids = new Set(feed1.items.map(item => item.guid || item.link));
-    const feed2ItemGuids = new Set(feed2.items.map(item => item.guid || item.link));
+    // Compare items - optimized with Map-based lookups (O(n) instead of O(n²))
+    // Create Maps for O(1) item lookup by GUID/link
+    const feed1ItemMap = new Map<string, typeof feed1.items[0]>();
+    const feed2ItemMap = new Map<string, typeof feed2.items[0]>();
+    
+    feed1.items.forEach(item => {
+      const guid = item.guid || item.link;
+      if (guid) {
+        feed1ItemMap.set(guid, item);
+      }
+    });
+    
+    feed2.items.forEach(item => {
+      const guid = item.guid || item.link;
+      if (guid) {
+        feed2ItemMap.set(guid, item);
+      }
+    });
+
+    const feed1ItemGuids = new Set(feed1ItemMap.keys());
+    const feed2ItemGuids = new Set(feed2ItemMap.keys());
 
     // Find common items (by GUID or link)
     const commonGuids = new Set<string>();
@@ -108,20 +126,20 @@ export class FeedComparatorService {
 
     const uniqueToFeed1 = feed1.items.filter(item => {
       const guid = item.guid || item.link;
-      return !feed2ItemGuids.has(guid);
+      return guid && !feed2ItemGuids.has(guid);
     });
 
     const uniqueToFeed2 = feed2.items.filter(item => {
       const guid = item.guid || item.link;
-      return !feed1ItemGuids.has(guid);
+      return guid && !feed1ItemGuids.has(guid);
     });
 
-    // Compare common items for differences
+    // Compare common items for differences - using Map lookups (O(1) instead of O(n))
     const itemDifferences: Array<{ guid: string; differences: string[] }> = [];
     
     commonGuids.forEach(guid => {
-      const item1 = feed1.items.find(item => (item.guid || item.link) === guid);
-      const item2 = feed2.items.find(item => (item.guid || item.link) === guid);
+      const item1 = feed1ItemMap.get(guid);
+      const item2 = feed2ItemMap.get(guid);
       
       if (item1 && item2) {
         const differences: string[] = [];

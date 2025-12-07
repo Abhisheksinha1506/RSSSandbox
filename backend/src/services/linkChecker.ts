@@ -74,24 +74,36 @@ export class LinkCheckerService {
         }
       });
 
-      // Check each link
-      const linkChecks = await Promise.allSettled(
-        Array.from(linkUrls).map(url => this.checkLink(url))
-      );
+      // Check each link with batching to prevent overwhelming the server
+      const linkUrlsArray = Array.from(linkUrls);
+      const BATCH_SIZE = 10; // Process 10 links at a time
+      const BATCH_DELAY = 100; // 100ms delay between batches
+      
+      for (let i = 0; i < linkUrlsArray.length; i += BATCH_SIZE) {
+        const batch = linkUrlsArray.slice(i, i + BATCH_SIZE);
+        const batchChecks = await Promise.allSettled(
+          batch.map(url => this.checkLink(url))
+        );
 
-      linkChecks.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          links.push(result.value);
-        } else {
-          links.push({
-            url: Array.from(linkUrls)[index],
-            status: 0,
-            statusText: 'Error',
-            ok: false,
-            error: result.reason?.message || 'Failed to check link'
-          });
+        batchChecks.forEach((result, batchIndex) => {
+          if (result.status === 'fulfilled') {
+            links.push(result.value);
+          } else {
+            links.push({
+              url: batch[batchIndex],
+              status: 0,
+              statusText: 'Error',
+              ok: false,
+              error: result.reason?.message || 'Failed to check link'
+            });
+          }
+        });
+
+        // Add delay between batches (except for the last batch)
+        if (i + BATCH_SIZE < linkUrlsArray.length) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
-      });
+      }
 
       // Calculate statistics
       const totalLinks = links.length;
@@ -129,50 +141,73 @@ export class LinkCheckerService {
     }
   }
 
-  private async checkLink(url: string): Promise<LinkCheckResult> {
+  private async checkLink(url: string, maxRedirects: number = 5, redirectChain: string[] = []): Promise<LinkCheckResult> {
     try {
-      const response = await fetchWithHeaders(url, { method: 'HEAD' });
-      const redirectChain: string[] = [url];
+      // Prevent infinite redirect loops
+      if (redirectChain.length >= maxRedirects) {
+        return {
+          url: redirectChain[0] || url,
+          status: 0,
+          statusText: 'Error',
+          ok: false,
+          error: `Maximum redirect depth (${maxRedirects}) exceeded`,
+          redirectChain: redirectChain.length > 0 ? redirectChain : undefined
+        };
+      }
 
-      // Follow redirects
+      // Prevent redirect loops by checking if we've seen this URL before
+      if (redirectChain.includes(url)) {
+        return {
+          url: redirectChain[0] || url,
+          status: 0,
+          statusText: 'Error',
+          ok: false,
+          error: 'Redirect loop detected',
+          redirectChain: redirectChain.length > 0 ? redirectChain : undefined
+        };
+      }
+
+      const currentChain = [...redirectChain, url];
+      const response = await fetchWithHeaders(url, { method: 'HEAD' });
+
+      // Follow redirects recursively
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers['location'] || response.headers['Location'];
         if (location) {
-          redirectChain.push(location);
-          // Check redirect destination
           try {
             const redirectUrl = new URL(location, url).toString();
-            const redirectResponse = await fetchWithHeaders(redirectUrl, { method: 'HEAD' });
-            redirectChain.push(redirectUrl);
+            // Recursively follow the redirect
+            return this.checkLink(redirectUrl, maxRedirects, currentChain);
+          } catch (urlError) {
+            // Invalid redirect URL
             return {
-              url,
+              url: currentChain[0],
               status: response.status,
               statusText: response.statusText,
-              ok: redirectResponse.ok,
-              redirectChain,
-              error: redirectResponse.ok ? undefined : `Redirects to ${redirectResponse.status}`
+              ok: false,
+              redirectChain: currentChain.length > 1 ? currentChain : undefined,
+              error: `Invalid redirect URL: ${location}`
             };
-          } catch {
-            // Couldn't follow redirect
           }
         }
       }
 
       return {
-        url,
+        url: currentChain[0],
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
-        redirectChain: redirectChain.length > 1 ? redirectChain : undefined,
+        redirectChain: currentChain.length > 1 ? currentChain : undefined,
         error: response.ok ? undefined : `HTTP ${response.status}: ${response.statusText}`
       };
     } catch (error) {
       return {
-        url,
+        url: redirectChain[0] || url,
         status: 0,
         statusText: 'Error',
         ok: false,
-        error: error instanceof Error ? error.message : 'Failed to check link'
+        error: error instanceof Error ? error.message : 'Failed to check link',
+        redirectChain: redirectChain.length > 0 ? redirectChain : undefined
       };
     }
   }

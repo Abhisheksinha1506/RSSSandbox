@@ -1,5 +1,5 @@
 import { feedParserService } from './feedParser';
-import fetch from 'node-fetch';
+import { fetchWithTimeout } from '../utils/httpClient';
 import type { WebSubHub, WebSubSubscription } from '../../../shared/types/websub';
 
 export interface WebSubDiscoveryResult {
@@ -12,10 +12,56 @@ export interface WebSubSubscriptionResult {
   subscription: WebSubSubscription;
   verified: boolean;
   error?: string;
+  timestamp: number; // For TTL eviction
+}
+
+interface SubscriptionEntry {
+  result: WebSubSubscriptionResult;
+  timestamp: number;
 }
 
 export class WebSubClient {
-  private subscriptions: Map<string, WebSubSubscriptionResult> = new Map();
+  private subscriptions: Map<string, SubscriptionEntry> = new Map();
+  private readonly SUBSCRIPTION_TTL = 24 * 60 * 60 * 1000; // 24 hours
+  private cleanupInterval: NodeJS.Timeout | null = null;
+
+  constructor() {
+    // Start periodic cleanup of expired subscriptions
+    this.startCleanup();
+  }
+
+  private startCleanup(): void {
+    // Clean up expired subscriptions every hour
+    this.cleanupInterval = setInterval(() => {
+      this.cleanup();
+    }, 60 * 60 * 1000);
+  }
+
+  private cleanup(): void {
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+
+    for (const [key, entry] of this.subscriptions.entries()) {
+      // Remove entries older than TTL
+      if (now - entry.timestamp > this.SUBSCRIPTION_TTL) {
+        keysToDelete.push(key);
+      }
+    }
+
+    keysToDelete.forEach(key => this.subscriptions.delete(key));
+
+    if (keysToDelete.length > 0) {
+      console.log(`Cleaned up ${keysToDelete.length} expired WebSub subscription(s)`);
+    }
+  }
+
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.subscriptions.clear();
+  }
 
   async discoverHub(feedUrl: string): Promise<WebSubDiscoveryResult> {
     try {
@@ -30,7 +76,7 @@ export class WebSubClient {
 
       // Try to fetch the feed HTML to find hub links
       try {
-        const feedResponse = await fetch(feedUrl);
+        const feedResponse = await fetchWithTimeout(feedUrl, { timeout: 30000 });
         const feedText = await feedResponse.text();
 
         // Look for rel="hub" link in feed content
@@ -86,8 +132,9 @@ export class WebSubClient {
       subscribeUrl.searchParams.set('hub.callback', callback);
       subscribeUrl.searchParams.set('hub.lease_seconds', leaseSeconds.toString());
 
-      const response = await fetch(subscribeUrl.toString(), {
+      const response = await fetchWithTimeout(subscribeUrl.toString(), {
         method: 'GET',
+        timeout: 30000
       });
 
       const subscription: WebSubSubscription = {
@@ -106,8 +153,12 @@ export class WebSubClient {
         subscriptionResult.error = `Hub returned status ${response.status}`;
       }
 
-      // Store subscription
-      this.subscriptions.set(topic, subscriptionResult);
+      // Store subscription with timestamp
+      subscriptionResult.timestamp = Date.now();
+      this.subscriptions.set(topic, {
+        result: subscriptionResult,
+        timestamp: subscriptionResult.timestamp
+      });
 
       return subscriptionResult;
     } catch (error) {
@@ -125,11 +176,36 @@ export class WebSubClient {
   }
 
   getSubscription(topic: string): WebSubSubscriptionResult | undefined {
-    return this.subscriptions.get(topic);
+    const entry = this.subscriptions.get(topic);
+    if (!entry) {
+      return undefined;
+    }
+
+    // Check if subscription has expired
+    const now = Date.now();
+    if (now - entry.timestamp > this.SUBSCRIPTION_TTL) {
+      this.subscriptions.delete(topic);
+      return undefined;
+    }
+
+    return entry.result;
   }
 
   getAllSubscriptions(): WebSubSubscriptionResult[] {
-    return Array.from(this.subscriptions.values());
+    const now = Date.now();
+    const validSubscriptions: WebSubSubscriptionResult[] = [];
+
+    for (const [key, entry] of this.subscriptions.entries()) {
+      // Filter out expired subscriptions
+      if (now - entry.timestamp <= this.SUBSCRIPTION_TTL) {
+        validSubscriptions.push(entry.result);
+      } else {
+        // Remove expired subscription
+        this.subscriptions.delete(key);
+      }
+    }
+
+    return validSubscriptions;
   }
 }
 
